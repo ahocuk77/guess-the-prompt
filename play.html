@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Play — Guess The Prompt</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="screen-wrap" style="max-width:500px">
+  <div class="brand">MANN+HUMMEL <span>×</span> I2M</div>
+  <div id="content"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+<script>
+const C=document.getElementById("content");
+const me=uid();
+let myName=localStorage.getItem("gp_name")||"";
+let lastPhase="",lastIdx=-1;
+
+function saveName(){
+  const n=document.getElementById("nm").value.trim();
+  if(!n){alert("Enter a name");return;}
+  myName=n; localStorage.setItem("gp_name",n);
+  playersRef.child(me).set({name:n});
+  renderCurrent();
+}
+
+let G={};
+gameRef.on("value",s=>{ G=s.val()||{}; renderCurrent(); });
+
+function renderCurrent(){
+  if(!myName){
+    C.innerHTML=`<div class="card"><h1>Enter your name</h1>
+      <input id="nm" placeholder="Your name">
+      <button class="btn yellow" onclick="saveName()">Join 🎮</button></div>`;
+    return;
+  }
+  const ph=G.phase||"lobby"; const idx=G.currentPhoto??-1;
+
+  if(ph==="lobby"){
+    C.innerHTML=`<div class="card"><h2>Hi ${esc(myName)} 👋</h2>
+      <p class="muted">Waiting for the game to start...</p></div>`;
+    return;
+  }
+
+  if(ph==="guess"){
+    const myGuess=(G.guesses&&G.guesses[idx]&&G.guesses[idx][me])||null;
+    if(myGuess){
+      C.innerHTML=`<div class="card"><h2>✅ Guess submitted!</h2>
+        <div class="guess-item">${esc(myGuess.text)}</div>
+        <p class="muted">Waiting for others...</p></div>`;
+    } else {
+      C.innerHTML=`<div class="card"><span class="tag">Photo ${idx+1}</span>
+        <h2>What's the prompt? 🤔</h2>
+        <textarea id="gtext" placeholder="Type your guess..."></textarea>
+        <button class="btn yellow" onclick="submitGuess(${idx})">Submit</button></div>`;
+    }
+    return;
+  }
+
+  if(ph==="show"){
+    C.innerHTML=`<div class="card"><h2>👀 Check the big screen</h2>
+      <p class="muted">All guesses are being shown.</p></div>`;
+    return;
+  }
+
+  if(ph==="vote"){
+    const guesses=(G.guesses&&G.guesses[idx])||{};
+    const myVote=(G.votes&&G.votes[idx]&&G.votes[idx][me])||null;
+    let html=`<div class="card"><span class="tag">Photo ${idx+1}</span><h2>🗳 Vote the best guess</h2>`;
+    Object.entries(guesses).forEach(([u,x])=>{
+      if(u===me) return; // can't vote self
+      const sel=myVote===u?"selected":"";
+      html+=`<button class="vote-btn ${sel}" onclick="vote(${idx},'${u}')">💬 ${esc(x.text)}<br><span class="small">— ${esc(x.name)}</span></button>`;
+    });
+    if(Object.keys(guesses).filter(u=>u!==me).length===0) html+=`<p class="muted">No one else to vote for.</p>`;
+    html+=`</div>`;
+    C.innerHTML=html;
+    return;
+  }
+
+  if(ph==="winner"||ph==="reveal"){
+    C.innerHTML=`<div class="card"><h2>👀 Look at the big screen!</h2></div>`;
+    return;
+  }
+  if(ph==="final"){
+    C.innerHTML=`<div class="card"><h2>🎉 Game Over!</h2><p class="muted">Thanks for playing, ${esc(myName)}!</p></div>`;
+    return;
+  }
+  C.innerHTML=`<div class="card"><p class="muted">Waiting...</p></div>`;
+}
+
+function submitGuess(idx){
+  const t=document.getElementById("gtext").value.trim();
+  if(!t){alert("Write something");return;}
+  // block if timer ended
+  if(G.timer&&G.timer.endsAt&&Date.now()>G.timer.endsAt){alert("Time is up!");return;}
+  gameRef.child("guesses/"+idx+"/"+me).set({name:myName,text:t});
+}
+function vote(idx,u){
+  if(G.timer&&G.timer.endsAt&&Date.now()>G.timer.endsAt){alert("Voting closed!");return;}
+  gameRef.child("votes/"+idx+"/"+me).set(u);
+}
+</script>
+</body>
+</html>

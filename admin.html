@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin — Guess The Prompt</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="screen-wrap" style="max-width:640px">
+  <div id="login" class="card">
+    <div class="brand">MANN+HUMMEL <span>×</span> I2M</div>
+    <h1>🔒 Admin Login</h1>
+    <input id="pw" type="password" placeholder="Password">
+    <button class="btn yellow" onclick="login()">Enter</button>
+  </div>
+
+  <div id="panel" style="display:none">
+    <div class="card">
+      <h2>📷 Photos</h2>
+      <input id="pUrl" placeholder="Image URL (https://...)">
+      <textarea id="pPrompt" placeholder="The REAL prompt for this image"></textarea>
+      <button class="btn yellow" onclick="addPhoto()">+ Add Photo</button>
+      <div id="photoList" class="list"></div>
+    </div>
+
+    <div class="card">
+      <h2>🎮 Game Controls</h2>
+      <p class="small">Current photo: <b id="curInfo">-</b> | Phase: <b id="phaseInfo">-</b></p>
+      <div class="row">
+        <input id="dur" type="number" value="60" style="max-width:120px"><span class="small" style="align-self:center">seconds</span>
+      </div>
+      <div class="row">
+        <button class="btn yellow" onclick="startGame()">Start Game (Lobby)</button>
+        <button class="btn dark" onclick="nextPhoto()">Next Photo →</button>
+      </div>
+      <div class="row">
+        <button class="btn dark" onclick="startTimer()">▶ Start Timer (Guessing)</button>
+        <button class="btn dark" onclick="setPhase('show')">Show Guesses</button>
+      </div>
+      <div class="row">
+        <button class="btn dark" onclick="openVoting()">🗳 Open Voting</button>
+        <button class="btn dark" onclick="setPhase('winner')">🏆 Show Winner</button>
+      </div>
+      <div class="row">
+        <button class="btn yellow" onclick="setPhase('reveal')">💡 Reveal Real Prompt</button>
+        <button class="btn dark" onclick="setPhase('final')">🎉 Final Scoreboard</button>
+      </div>
+      <hr>
+      <button class="btn ghost" onclick="resetAll()">⚠ Reset Everything</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+<script>
+function login(){
+  if(document.getElementById("pw").value===ADMIN_PASSWORD){
+    document.getElementById("login").style.display="none";
+    document.getElementById("panel").style.display="block";
+  } else alert("Wrong password");
+}
+
+let photos=[];
+gameRef.on("value",s=>{
+  const g=s.val()||{};
+  photos=g.photos||[];
+  renderPhotos();
+  document.getElementById("curInfo").textContent=(g.currentPhoto??-1)+1+" / "+photos.length;
+  document.getElementById("phaseInfo").textContent=g.phase||"-";
+});
+
+function renderPhotos(){
+  document.getElementById("photoList").innerHTML=photos.map((p,i)=>
+    `<div class="guess-item"><span class="tag">#${i+1}</span><br>
+     <img src="${esc(p.url)}" style="max-width:100%;border-radius:8px;margin:8px 0">
+     <div class="small">Prompt: ${esc(p.realPrompt)}</div>
+     <button class="btn ghost" onclick="delPhoto(${i})">Delete</button></div>`).join("");
+}
+function addPhoto(){
+  const url=document.getElementById("pUrl").value.trim();
+  const rp=document.getElementById("pPrompt").value.trim();
+  if(!url||!rp){alert("Fill both fields");return;}
+  photos.push({url,realPrompt:rp});
+  gameRef.child("photos").set(photos);
+  document.getElementById("pUrl").value="";document.getElementById("pPrompt").value="";
+}
+function delPhoto(i){ photos.splice(i,1); gameRef.child("photos").set(photos); }
+
+function startGame(){ gameRef.update({phase:"lobby",currentPhoto:-1,guesses:null,votes:null,timer:null}); }
+function nextPhoto(){
+  gameRef.once("value",s=>{
+    const g=s.val()||{}; let i=(g.currentPhoto??-1)+1;
+    if(i>=(g.photos||[]).length){alert("No more photos. Use Final Scoreboard.");return;}
+    gameRef.update({currentPhoto:i,phase:"guess",timer:null});
+  });
+}
+function startTimer(){
+  const d=parseInt(document.getElementById("dur").value)||60;
+  gameRef.update({phase:"guess",timer:{running:true,duration:d,endsAt:Date.now()+d*1000}});
+}
+function openVoting(){
+  const d=parseInt(document.getElementById("dur").value)||60;
+  gameRef.update({phase:"vote",timer:{running:true,duration:d,endsAt:Date.now()+d*1000}});
+}
+function setPhase(p){ gameRef.update({phase:p,timer:null}); }
+function resetAll(){ if(confirm("Reset everything?")){ gameRef.set({phase:"lobby",currentPhoto:-1,photos:photos}); playersRef.set(null);} }
+</script>
+</body>
+</html>
