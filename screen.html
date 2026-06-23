@@ -135,11 +135,13 @@ function render(){
   }
 
   if(ph==="vote" && photo){
-    C.innerHTML=`<span class="tag">Photo ${idx+1} — VOTE NOW</span>
+    // During voting, hide the guesses/tallies on the big screen
+    // so nobody is influenced. Only show the timer and a message.
+    C.innerHTML=`<span class="tag">Photo ${idx+1} — VOTING</span>
+      <img class="photo-big" src="${esc(photo.url)}" style="max-height:32vh">
       <div class="timer" id="t">⏳</div>
-      <div class="list" id="voteList"></div>
-      <p class="muted">Vote on your phone 📱</p>`;
-    renderVoteList(idx);
+      <h2>🗳 Voting in progress...</h2>
+      <p class="muted">Cast your vote on your phone 📱</p>`;
     return;
   }
 
@@ -160,11 +162,11 @@ function render(){
 // Update only dynamic content while staying on the same view.
 function updateDynamic(ph,idx){
   if(ph==="show") renderGuessList(idx);
-  else if(ph==="vote") renderVoteList(idx);
   else if(ph==="winner") renderWinner(idx);
   else if(ph==="final") renderFinal();
-  // "guess" phase: nothing dynamic to update -> leave DOM and timer alone
+  // "vote" phase: nothing shown on screen, results appear after time is up
 }
+
 
 function renderGuessList(idx){
   const el=document.getElementById("guessList"); if(!el) return;
