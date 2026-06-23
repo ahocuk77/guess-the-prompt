@@ -34,6 +34,24 @@ let timerTargetEndsAt=null; // the endsAt this timer is counting to
 function playURL(){ return location.href.replace(/screen\.html.*$/,"play.html"); }
 
 gameRef.on("value",s=>{ G=s.val()||{}; render(); syncTimer(); });
+// Listen to players and refresh the lobby bubbles in real time
+let PLAYERS={};
+playersRef.on("value",s=>{ PLAYERS=s.val()||{}; renderPlayerBubbles(); });
+
+// Render player name chips (only visible in lobby)
+function renderPlayerBubbles(){
+  const wrap=document.getElementById("playersWrap");
+  if(!wrap) return; // not in lobby view
+  const names=Object.values(PLAYERS).map(p=>p&&p.name).filter(Boolean);
+  if(names.length===0){
+    wrap.innerHTML=`<p class="muted">Waiting for players to join...</p>`;
+    return;
+  }
+  wrap.innerHTML=names.map(n=>`<div class="player-chip">${esc(n)}</div>`).join("");
+  const c=document.getElementById("playersCount");
+  if(c) c.textContent=names.length+" player"+(names.length===1?"":"s")+" joined";
+}
+
 
 // ---- Independent timer engine ----
 function syncTimer(){
@@ -80,11 +98,16 @@ function render(){
   const photo=(G.photos||[])[idx];
 
   if(ph==="lobby"){
-    C.innerHTML=`<h1>Scan to Join 📱</h1><div class="qr-wrap" id="qr"></div>
-      <p class="muted">Open the link & enter your name</p>`;
+    C.innerHTML=`<h1>Scan to Join 📱</h1>
+      <div class="qr-wrap" id="qr"></div>
+      <p class="muted">Open the link & enter your name</p>
+      <div class="players-count" id="playersCount"></div>
+      <div class="players-wrap" id="playersWrap"></div>`;
     new QRCode(document.getElementById("qr"),{text:playURL(),width:240,height:240});
+    renderPlayerBubbles(); // paint chips immediately when entering lobby
     return;
   }
+
 
   if(ph==="guess" && photo){
     C.innerHTML=`<span class="tag">Photo ${idx+1}</span>
