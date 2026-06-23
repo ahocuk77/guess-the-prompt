@@ -10,4 +10,4 @@ const firebaseConfig = {
   measurementId: "G-BDP8N7ZFHB"
 };
 
-const ADMIN_PASSWORD = "mannhummel2025"; // istersen değiştir
+const ADMIN_PASSWORD = " "; // istersen değiştir

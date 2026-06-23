@@ -18,46 +18,60 @@
 <script src="app.js"></script>
 <script>
 const C=document.getElementById("content");
-let timerInt=null;
 let G={};
-let lastRenderKey=""; // only re-render when this changes
+let lastRenderKey="";
+
+// Timer runs completely independently from render(), so guesses/votes
+// coming in can never disturb it.
+let timerLoop=null;
+let timerTargetEndsAt=null; // the endsAt this timer is counting to
 
 function playURL(){ return location.href.replace(/screen\.html.*$/,"play.html"); }
 
-gameRef.on("value",s=>{ G=s.val()||{}; render(); });
+gameRef.on("value",s=>{ G=s.val()||{}; render(); syncTimer(); });
 
-function startCountdown(endsAt,el){
-  clearInterval(timerInt);
-  const tick=()=>{
+// ---- Independent timer engine ----
+function syncTimer(){
+  const running = G.timer && G.timer.running;
+  const endsAt  = running ? G.timer.endsAt : null;
+
+  if(!running){
+    // No active timer -> stop loop
+    stopTimer();
+    timerTargetEndsAt=null;
+    return;
+  }
+  // Already counting to this exact endsAt? Do nothing (prevents restart/flicker).
+  if(timerTargetEndsAt===endsAt && timerLoop) return;
+
+  timerTargetEndsAt=endsAt;
+  stopTimer();
+  const paint=()=>{
+    const el=document.getElementById("t");
+    if(!el) return; // timer not on screen right now
     const left=Math.max(0,Math.ceil((endsAt-Date.now())/1000));
-    if(el) el.textContent=left;
-    if(left<=0) clearInterval(timerInt);
+    el.textContent=left;
   };
-  tick();
-  timerInt=setInterval(tick,200);
+  paint();
+  timerLoop=setInterval(paint,250);
 }
+function stopTimer(){ if(timerLoop){ clearInterval(timerLoop); timerLoop=null; } }
 
+// ---- Render: rebuild DOM only on real view change ----
 function render(){
   const ph=G.phase||"lobby";
   const idx=G.currentPhoto??-1;
 
-  // Render key: only rebuild the DOM when one of these changes.
-  // Other players submitting guesses/votes will NOT change this key,
-  // so the screen stays stable (no flicker).
-  const hasTimer=G.timer&&G.timer.running?G.timer.endsAt:"none";
-  const key=`${ph}|${idx}|${hasTimer}`;
-
+  // Timer is NOT part of the key anymore -> render won't react to timer.
+  const key=`${ph}|${idx}`;
   const sameView=(key===lastRenderKey);
 
   if(sameView){
-    // Same view: only update dynamic parts (vote tallies / guess list),
-    // do NOT rebuild the whole DOM and do NOT touch the timer.
     updateDynamic(ph,idx);
-    return;
+    return; // do not touch the DOM container, timer keeps running
   }
   lastRenderKey=key;
 
-  // ----- Full rebuild only on real view change -----
   const photo=(G.photos||[])[idx];
 
   if(ph==="lobby"){
@@ -72,7 +86,6 @@ function render(){
       <img class="photo-big" src="${esc(photo.url)}">
       <div class="timer" id="t">⏳</div>
       <p class="muted">Write your guess on your phone!</p>`;
-    if(G.timer&&G.timer.running) startCountdown(G.timer.endsAt,document.getElementById("t"));
     return;
   }
 
@@ -90,14 +103,10 @@ function render(){
       <div class="list" id="voteList"></div>
       <p class="muted">Vote on your phone 📱</p>`;
     renderVoteList(idx);
-    if(G.timer&&G.timer.running) startCountdown(G.timer.endsAt,document.getElementById("t"));
     return;
   }
 
-  if(ph==="winner" && photo){
-    renderWinner(idx);
-    return;
-  }
+  if(ph==="winner" && photo){ renderWinner(idx); return; }
 
   if(ph==="reveal" && photo){
     C.innerHTML=`<h1>💡 The Real Prompt Was...</h1>
@@ -106,20 +115,18 @@ function render(){
     return;
   }
 
-  if(ph==="final"){
-    renderFinal();
-    return;
-  }
+  if(ph==="final"){ renderFinal(); return; }
 
   C.innerHTML=`<h1>Waiting...</h1>`;
 }
 
-// Update only the dynamic content while staying on the same view.
+// Update only dynamic content while staying on the same view.
 function updateDynamic(ph,idx){
   if(ph==="show") renderGuessList(idx);
   else if(ph==="vote") renderVoteList(idx);
   else if(ph==="winner") renderWinner(idx);
   else if(ph==="final") renderFinal();
+  // "guess" phase: nothing dynamic to update -> leave DOM and timer alone
 }
 
 function renderGuessList(idx){
@@ -170,6 +177,7 @@ function renderFinal(){
   ).join("")||"<p class='muted'>No data</p>";
   C.innerHTML=`<h1>🎉 Final Scoreboard</h1>${list}`;
 }
+
 
 </script>
 </body>
