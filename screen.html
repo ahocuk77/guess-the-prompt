@@ -190,14 +190,32 @@ function renderWinner(idx){
   const votes=(G.votes&&G.votes[idx])||{};
   const tally={};
   Object.values(votes).forEach(v=>tally[v]=(tally[v]||0)+1);
-  let bestU=null,best=-1;
-  Object.keys(guesses).forEach(u=>{ if((tally[u]||0)>best){best=tally[u]||0;bestU=u;} });
-  const w=guesses[bestU];
-  C.innerHTML=`<h1>🏆 Round Winner!</h1>
-    ${w?`<div class="winner">${esc(w.name)}</div>
-    <div class="guess-item">💬 ${esc(w.text)}</div>
-    <p class="muted">${best} votes</p>`:"<p class='muted'>No votes</p>"}`;
+
+  // Build a ranked list: highest votes first, authors now shown
+  const ranked=Object.entries(guesses)
+    .map(([u,x])=>({ name:x.name, text:x.text, votes:tally[u]||0 }))
+    .sort((a,b)=>b.votes-a.votes);
+
+  if(ranked.length===0){
+    C.innerHTML=`<h1>🏆 Results</h1><p class="muted">No guesses</p>`;
+    return;
+  }
+
+  const medals=["🥇","🥈","🥉"];
+  const rows=ranked.map((r,i)=>`
+    <div class="rank-item">
+      <div class="rank-num">${medals[i]||("#"+(i+1))}</div>
+      <div class="rank-body">
+        <div class="rank-text">💬 ${esc(r.text)}</div>
+        <div class="rank-author">— ${esc(r.name)}</div>
+      </div>
+      <div class="rank-votes">${r.votes} ${r.votes===1?"vote":"votes"}</div>
+    </div>
+  `).join("");
+
+  C.innerHTML=`<h1>🏆 Results</h1>${rows}`;
 }
+
 
 function renderFinal(){
   const scores={};

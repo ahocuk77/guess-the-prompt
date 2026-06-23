@@ -107,15 +107,20 @@ function renderCurrent(force){
     const guesses=(G.guesses&&G.guesses[idx])||{};
     let html=`<div class="card"><span class="tag">Photo ${idx+1}</span><h2>🗳 Vote the best guess</h2>`;
     Object.entries(guesses).forEach(([u,x])=>{
-      if(u===me) return;
+      if(u===me) return; // can't vote for your own
       const sel=iVoted && G.votes[idx][me]===u ? "selected":"";
-      html+=`<button class="vote-btn ${sel}" id="vb_${u}" onclick="vote(${idx},'${u}')">💬 ${esc(x.text)}<br><span class="small">— ${esc(x.name)}</span></button>`;
+      // Author name hidden on purpose — only the prompt text is shown
+      html+=`<button class="vote-btn ${sel}" id="vb_${u}" onclick="vote(${idx},'${u}')">
+        💬 ${esc(x.text)}
+        <span class="check">✓</span>
+      </button>`;
     });
     if(Object.keys(guesses).filter(u=>u!==me).length===0) html+=`<p class="muted">No one else to vote for.</p>`;
     html+=`</div>`;
     C.innerHTML=html;
     return;
   }
+
 
   if(ph==="winner"||ph==="reveal"){
     C.innerHTML=`<div class="card"><h2>👀 Look at the big screen!</h2></div>`;
@@ -128,7 +133,7 @@ function renderCurrent(force){
   C.innerHTML=`<div class="card"><p class="muted">Waiting...</p></div>`;
 }
 
-// Oylama ekranında sadece seçili butonu güncelle (ekranı yeniden çizmeden)
+// On the vote screen, only update which button is selected (no full re-render)
 function updateVoteCountsOnly(idx){
   if(!(G.votes && G.votes[idx] && G.votes[idx][me])) return;
   const myV=G.votes[idx][me];
@@ -136,6 +141,7 @@ function updateVoteCountsOnly(idx){
   const el=document.getElementById("vb_"+myV);
   if(el) el.classList.add("selected");
 }
+
 
 function submitGuess(idx){
   const t=document.getElementById("gtext").value.trim();

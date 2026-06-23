@@ -80,3 +80,39 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
   color:var(--muted);
   font-weight:600;
 }
+/* --- Vote selection check mark --- */
+.vote-btn{ position:relative; }
+.vote-btn .check{
+  position:absolute;
+  top:50%;
+  right:14px;
+  transform:translateY(-50%) scale(0);
+  width:30px;height:30px;
+  border-radius:50%;
+  background:var(--green);
+  color:#fff;
+  font-weight:900;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;
+  transition:transform .2s ease;
+}
+.vote-btn.selected .check{ transform:translateY(-50%) scale(1); }
+.vote-btn.selected{ border-color:var(--green); background:var(--green-soft); }
+
+/* --- Results ranking (screen) --- */
+.rank-item{
+  display:flex;align-items:center;gap:16px;
+  background:#fff;border:1px solid var(--line);border-radius:14px;
+  padding:16px 20px;margin:12px auto;max-width:760px;text-align:left;
+  box-shadow:0 3px 12px rgba(0,0,0,.06);
+}
+.rank-num{
+  font-size:26px;font-weight:900;color:var(--green-dark);min-width:44px;text-align:center;
+}
+.rank-body{ flex:1; }
+.rank-text{ font-size:20px;font-weight:600;color:var(--ink); }
+.rank-author{ font-size:14px;color:var(--muted);margin-top:4px; }
+.rank-votes{
+  background:var(--green);color:#fff;font-weight:800;
+  padding:8px 14px;border-radius:999px;font-size:16px;white-space:nowrap;
+}
