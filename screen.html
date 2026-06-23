@@ -19,26 +19,46 @@
 <script>
 const C=document.getElementById("content");
 let timerInt=null;
+let G={};
+let lastRenderKey=""; // only re-render when this changes
 
 function playURL(){ return location.href.replace(/screen\.html.*$/,"play.html"); }
 
-gameRef.on("value",s=>{
-  const g=s.val()||{}; render(g);
-});
+gameRef.on("value",s=>{ G=s.val()||{}; render(); });
 
 function startCountdown(endsAt,el){
   clearInterval(timerInt);
-  timerInt=setInterval(()=>{
+  const tick=()=>{
     const left=Math.max(0,Math.ceil((endsAt-Date.now())/1000));
     if(el) el.textContent=left;
     if(left<=0) clearInterval(timerInt);
-  },200);
+  };
+  tick();
+  timerInt=setInterval(tick,200);
 }
 
-function render(g){
-  const ph=g.phase||"lobby";
-  const idx=g.currentPhoto??-1;
-  const photo=(g.photos||[])[idx];
+function render(){
+  const ph=G.phase||"lobby";
+  const idx=G.currentPhoto??-1;
+
+  // Render key: only rebuild the DOM when one of these changes.
+  // Other players submitting guesses/votes will NOT change this key,
+  // so the screen stays stable (no flicker).
+  const hasTimer=G.timer&&G.timer.running?G.timer.endsAt:"none";
+  const key=`${ph}|${idx}|${hasTimer}`;
+
+  const sameView=(key===lastRenderKey);
+
+  if(sameView){
+    // Same view: only update dynamic parts (vote tallies / guess list),
+    // do NOT rebuild the whole DOM and do NOT touch the timer.
+    updateDynamic(ph,idx);
+    return;
+  }
+  lastRenderKey=key;
+
+  // ----- Full rebuild only on real view change -----
+  const photo=(G.photos||[])[idx];
 
   if(ph==="lobby"){
     C.innerHTML=`<h1>Scan to Join 📱</h1><div class="qr-wrap" id="qr"></div>
@@ -50,48 +70,32 @@ function render(g){
   if(ph==="guess" && photo){
     C.innerHTML=`<span class="tag">Photo ${idx+1}</span>
       <img class="photo-big" src="${esc(photo.url)}">
-      <div class="timer" id="t">${g.timer?'':'⏳'}</div>
+      <div class="timer" id="t">⏳</div>
       <p class="muted">Write your guess on your phone!</p>`;
-    if(g.timer&&g.timer.running) startCountdown(g.timer.endsAt,document.getElementById("t"));
+    if(G.timer&&G.timer.running) startCountdown(G.timer.endsAt,document.getElementById("t"));
     return;
   }
 
   if(ph==="show" && photo){
-    const guesses=(g.guesses&&g.guesses[idx])||{};
-    const items=Object.values(guesses).map(x=>`<div class="guess-item">💬 ${esc(x.text)}<br><span class="small">— ${esc(x.name)}</span></div>`).join("")||"<p class='muted'>No guesses</p>";
     C.innerHTML=`<span class="tag">Photo ${idx+1} — Guesses</span>
       <img class="photo-big" src="${esc(photo.url)}" style="max-height:35vh">
-      <div class="list">${items}</div>`;
+      <div class="list" id="guessList"></div>`;
+    renderGuessList(idx);
     return;
   }
 
   if(ph==="vote" && photo){
-    const guesses=(g.guesses&&g.guesses[idx])||{};
-    const votes=(g.votes&&g.votes[idx])||{};
-    const tally={};
-    Object.values(votes).forEach(v=>tally[v]=(tally[v]||0)+1);
-    const items=Object.entries(guesses).map(([u,x])=>
-      `<div class="guess-item">💬 ${esc(x.text)} <span class="tag">${tally[u]||0} votes</span><br><span class="small">— ${esc(x.name)}</span></div>`).join("");
     C.innerHTML=`<span class="tag">Photo ${idx+1} — VOTE NOW</span>
-      <div class="timer" id="t"></div>
-      <div class="list">${items}</div>
+      <div class="timer" id="t">⏳</div>
+      <div class="list" id="voteList"></div>
       <p class="muted">Vote on your phone 📱</p>`;
-    if(g.timer&&g.timer.running) startCountdown(g.timer.endsAt,document.getElementById("t"));
+    renderVoteList(idx);
+    if(G.timer&&G.timer.running) startCountdown(G.timer.endsAt,document.getElementById("t"));
     return;
   }
 
   if(ph==="winner" && photo){
-    const guesses=(g.guesses&&g.guesses[idx])||{};
-    const votes=(g.votes&&g.votes[idx])||{};
-    const tally={};
-    Object.values(votes).forEach(v=>tally[v]=(tally[v]||0)+1);
-    let bestU=null,best=-1;
-    Object.keys(guesses).forEach(u=>{ if((tally[u]||0)>best){best=tally[u]||0;bestU=u;} });
-    const w=guesses[bestU];
-    C.innerHTML=`<h1>🏆 Round Winner!</h1>
-      ${w?`<div class="winner">${esc(w.name)}</div>
-      <div class="guess-item">💬 ${esc(w.text)}</div>
-      <p class="muted">${best} votes</p>`:"<p class='muted'>No votes</p>"}`;
+    renderWinner(idx);
     return;
   }
 
@@ -103,23 +107,70 @@ function render(g){
   }
 
   if(ph==="final"){
-    // overall scoreboard: total votes received across all photos
-    const scores={};
-    const votes=g.votes||{}; const guesses=g.guesses||{};
-    Object.keys(votes).forEach(pi=>{
-      Object.values(votes[pi]).forEach(votedU=>{
-        const name=(guesses[pi]&&guesses[pi][votedU]&&guesses[pi][votedU].name)||votedU;
-        scores[name]=(scores[name]||0)+1;
-      });
-    });
-    const sorted=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
-    const list=sorted.map(([n,s],i)=>`<div class="guess-item">${i===0?'👑':'#'+(i+1)} <b>${esc(n)}</b> — ${s} votes</div>`).join("")||"<p class='muted'>No data</p>";
-    C.innerHTML=`<h1>🎉 Final Scoreboard</h1>${list}`;
+    renderFinal();
     return;
   }
 
   C.innerHTML=`<h1>Waiting...</h1>`;
 }
+
+// Update only the dynamic content while staying on the same view.
+function updateDynamic(ph,idx){
+  if(ph==="show") renderGuessList(idx);
+  else if(ph==="vote") renderVoteList(idx);
+  else if(ph==="winner") renderWinner(idx);
+  else if(ph==="final") renderFinal();
+}
+
+function renderGuessList(idx){
+  const el=document.getElementById("guessList"); if(!el) return;
+  const guesses=(G.guesses&&G.guesses[idx])||{};
+  el.innerHTML=Object.values(guesses).map(x=>
+    `<div class="guess-item">💬 ${esc(x.text)}<br><span class="small">— ${esc(x.name)}</span></div>`
+  ).join("")||"<p class='muted'>No guesses</p>";
+}
+
+function renderVoteList(idx){
+  const el=document.getElementById("voteList"); if(!el) return;
+  const guesses=(G.guesses&&G.guesses[idx])||{};
+  const votes=(G.votes&&G.votes[idx])||{};
+  const tally={};
+  Object.values(votes).forEach(v=>tally[v]=(tally[v]||0)+1);
+  el.innerHTML=Object.entries(guesses).map(([u,x])=>
+    `<div class="guess-item">💬 ${esc(x.text)} <span class="tag">${tally[u]||0} votes</span><br><span class="small">— ${esc(x.name)}</span></div>`
+  ).join("");
+}
+
+function renderWinner(idx){
+  const guesses=(G.guesses&&G.guesses[idx])||{};
+  const votes=(G.votes&&G.votes[idx])||{};
+  const tally={};
+  Object.values(votes).forEach(v=>tally[v]=(tally[v]||0)+1);
+  let bestU=null,best=-1;
+  Object.keys(guesses).forEach(u=>{ if((tally[u]||0)>best){best=tally[u]||0;bestU=u;} });
+  const w=guesses[bestU];
+  C.innerHTML=`<h1>🏆 Round Winner!</h1>
+    ${w?`<div class="winner">${esc(w.name)}</div>
+    <div class="guess-item">💬 ${esc(w.text)}</div>
+    <p class="muted">${best} votes</p>`:"<p class='muted'>No votes</p>"}`;
+}
+
+function renderFinal(){
+  const scores={};
+  const votes=G.votes||{}; const guesses=G.guesses||{};
+  Object.keys(votes).forEach(pi=>{
+    Object.values(votes[pi]).forEach(votedU=>{
+      const name=(guesses[pi]&&guesses[pi][votedU]&&guesses[pi][votedU].name)||votedU;
+      scores[name]=(scores[name]||0)+1;
+    });
+  });
+  const sorted=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  const list=sorted.map(([n,s],i)=>
+    `<div class="guess-item">${i===0?'👑':'#'+(i+1)} <b>${esc(n)}</b> — ${s} votes</div>`
+  ).join("")||"<p class='muted'>No data</p>";
+  C.innerHTML=`<h1>🎉 Final Scoreboard</h1>${list}`;
+}
+
 </script>
 </body>
 </html>
