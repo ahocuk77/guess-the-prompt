@@ -74,6 +74,14 @@ function renderCurrent(force){
   }
 
   if(ph==="guess"){
+    // Check if time is already up
+    const timeUp = G.timer && G.timer.endsAt && Date.now() > G.timer.endsAt;
+
+    if(timeUp){
+      C.innerHTML=`<div class="card"><h2>⏰ Time's up!</h2>
+        <p class="muted">Look at the big screen 📺</p></div>`;
+      return;
+    }
     if(iSubmitted){
       const myGuess=G.guesses[idx][me];
       C.innerHTML=`<div class="card"><h2>✅ Guess submitted!</h2>
@@ -87,6 +95,7 @@ function renderCurrent(force){
     }
     return;
   }
+
 
   if(ph==="show"){
     C.innerHTML=`<div class="card"><h2>👀 Check the big screen</h2>
@@ -138,6 +147,21 @@ function vote(idx,u){
   if(G.timer&&G.timer.endsAt&&Date.now()>G.timer.endsAt){alert("Voting closed!");return;}
   gameRef.child("votes/"+idx+"/"+me).set(u);
 }
+
+// Watch the timer: when it expires during the guess phase,
+// force a re-render so the submit screen turns into "Time's up".
+let lastTimeUp=false;
+setInterval(()=>{
+  if((G.phase||"")!=="guess") { lastTimeUp=false; return; }
+  const timeUp = G.timer && G.timer.endsAt && Date.now() > G.timer.endsAt;
+  if(timeUp && !lastTimeUp){
+    lastTimeUp=true;
+    lastRenderKey=""; // force a full re-render
+    renderCurrent(true);
+  }
+  if(!timeUp) lastTimeUp=false;
+},500);
+
 
 </script>
 </body>

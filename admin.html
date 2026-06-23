@@ -9,8 +9,6 @@
 <title>Admin — Guess The Prompt</title>
 <link rel="stylesheet" href="style.css">
 </head>
-l="stylesheet" href="style.css">
-</head>
 <body>
 <div class="screen-wrap" style="max-width:640px">
   <div id="login" class="card">
@@ -40,18 +38,20 @@ l="stylesheet" href="style.css">
         <button class="btn yellow" onclick="startGame()">▶ Start Game</button>
       </div>
       <div class="row">
+        <button class="btn dark" onclick="prevPhoto()">← Previous Photo</button>
         <button class="btn dark" onclick="nextPhoto()">Next Photo →</button>
+      </div>
+      <div class="row">
         <button class="btn dark" onclick="setPhase('show')">Show Guesses</button>
-      </div>
-      <div class="row">
         <button class="btn dark" onclick="openVoting()">🗳 Open Voting</button>
-        <button class="btn dark" onclick="setPhase('winner')">🏆 Show Winner</button>
       </div>
       <div class="row">
+        <button class="btn dark" onclick="setPhase('winner')">🏆 Show Winner</button>
         <button class="btn yellow" onclick="setPhase('reveal')">💡 Reveal Real Prompt</button>
+      </div>
+      <div class="row">
         <button class="btn dark" onclick="setPhase('final')">🎉 Final Scoreboard</button>
       </div>
-
       <hr>
       <button class="btn ghost" onclick="resetAll()">⚠ Reset Everything</button>
     </div>
@@ -123,6 +123,21 @@ function nextPhoto(){
     const g=s.val()||{};
     let i=(g.currentPhoto??-1)+1;
     if(i>=(g.photos||[]).length){ alert("No more photos. Use Final Scoreboard."); return; }
+    const d=parseInt(document.getElementById("dur").value)||60;
+    gameRef.update({
+      currentPhoto:i,
+      phase:"guess",
+      timer:{running:true,duration:d,endsAt:Date.now()+d*1000}
+    });
+  });
+}
+
+// Previous photo: go back one photo and start its timer again
+function prevPhoto(){
+  gameRef.once("value",s=>{
+    const g=s.val()||{};
+    let i=(g.currentPhoto??0)-1;
+    if(i<0){ alert("Already at the first photo."); return; }
     const d=parseInt(document.getElementById("dur").value)||60;
     gameRef.update({
       currentPhoto:i,
