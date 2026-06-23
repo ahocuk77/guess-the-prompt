@@ -134,6 +134,26 @@ function render(){
     return;
   }
 
+  if(ph==="rules"){
+    C.innerHTML=`
+      <h1>📜 How to Play</h1>
+      <div class="rules-box">
+        <div class="rule"><span class="rule-num">1</span>
+          <p>An <b>AI-generated image</b> appears on the screen.</p></div>
+        <div class="rule"><span class="rule-num">2</span>
+          <p>On your phone, <b>guess the prompt</b> that was used to create it — before the timer runs out.</p></div>
+        <div class="rule"><span class="rule-num">3</span>
+          <p>When time is up, everyone <b>votes</b> for the best guess (you can't vote for your own).</p></div>
+        <div class="rule"><span class="rule-num">4</span>
+          <p>The <b>most-voted prompt</b> wins the round, then the <b>real prompt</b> is revealed.</p></div>
+        <div class="rule"><span class="rule-num">5</span>
+          <p>After all images, the player with the most votes is crowned the <b>Champion</b> 👑</p></div>
+      </div>
+      <p class="muted">Get ready... scan the QR when the lobby opens!</p>`;
+    return;
+  }
+
+
   if(ph==="vote" && photo){
     // During voting, hide the guesses/tallies on the big screen
     // so nobody is influenced. Only show the timer and a message.
