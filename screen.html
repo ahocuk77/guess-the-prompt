@@ -73,8 +73,17 @@ function syncTimer(){
     const el=document.getElementById("t");
     if(!el) return; // timer not on screen right now
     const left=Math.max(0,Math.ceil((endsAt-Date.now())/1000));
-    el.textContent=left;
+    if(left<=0){
+      el.textContent="⏰ Time's up!";
+      el.style.fontSize="42px";
+      clearInterval(timerLoop);
+      timerLoop=null;
+    } else {
+      el.textContent=left;
+      el.style.fontSize=""; // reset to default size
+    }
   };
+
   paint();
   timerLoop=setInterval(paint,250);
 }

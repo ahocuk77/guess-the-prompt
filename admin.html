@@ -36,11 +36,11 @@ l="stylesheet" href="style.css">
         <input id="dur" type="number" value="60" style="max-width:120px"><span class="small" style="align-self:center">seconds</span>
       </div>
       <div class="row">
-        <button class="btn yellow" onclick="startGame()">Start Game (Lobby)</button>
-        <button class="btn dark" onclick="nextPhoto()">Next Photo →</button>
+        <button class="btn dark" onclick="goLobby()">Lobby (Show QR)</button>
+        <button class="btn yellow" onclick="startGame()">▶ Start Game</button>
       </div>
       <div class="row">
-        <button class="btn dark" onclick="startTimer()">▶ Start Timer (Guessing)</button>
+        <button class="btn dark" onclick="nextPhoto()">Next Photo →</button>
         <button class="btn dark" onclick="setPhase('show')">Show Guesses</button>
       </div>
       <div class="row">
@@ -51,6 +51,7 @@ l="stylesheet" href="style.css">
         <button class="btn yellow" onclick="setPhase('reveal')">💡 Reveal Real Prompt</button>
         <button class="btn dark" onclick="setPhase('final')">🎉 Final Scoreboard</button>
       </div>
+
       <hr>
       <button class="btn ghost" onclick="resetAll()">⚠ Reset Everything</button>
     </div>
@@ -95,18 +96,42 @@ function addPhoto(){
 }
 function delPhoto(i){ photos.splice(i,1); gameRef.child("photos").set(photos); }
 
-function startGame(){ gameRef.update({phase:"lobby",currentPhoto:-1,guesses:null,votes:null,timer:null}); }
-function nextPhoto(){
+// Go to lobby: show QR, reset round data
+function goLobby(){
+  gameRef.update({phase:"lobby",currentPhoto:-1,guesses:null,votes:null,timer:null});
+}
+
+// Start game: jump to first photo AND start the timer automatically
+function startGame(){
   gameRef.once("value",s=>{
-    const g=s.val()||{}; let i=(g.currentPhoto??-1)+1;
-    if(i>=(g.photos||[]).length){alert("No more photos. Use Final Scoreboard.");return;}
-    gameRef.update({currentPhoto:i,phase:"guess",timer:null});
+    const g=s.val()||{};
+    if((g.photos||[]).length===0){ alert("Add at least one photo first."); return; }
+    const d=parseInt(document.getElementById("dur").value)||60;
+    gameRef.update({
+      currentPhoto:0,
+      phase:"guess",
+      guesses:null,
+      votes:null,
+      timer:{running:true,duration:d,endsAt:Date.now()+d*1000}
+    });
   });
 }
-function startTimer(){
-  const d=parseInt(document.getElementById("dur").value)||60;
-  gameRef.update({phase:"guess",timer:{running:true,duration:d,endsAt:Date.now()+d*1000}});
+
+// Next photo: move forward AND start the timer automatically
+function nextPhoto(){
+  gameRef.once("value",s=>{
+    const g=s.val()||{};
+    let i=(g.currentPhoto??-1)+1;
+    if(i>=(g.photos||[]).length){ alert("No more photos. Use Final Scoreboard."); return; }
+    const d=parseInt(document.getElementById("dur").value)||60;
+    gameRef.update({
+      currentPhoto:i,
+      phase:"guess",
+      timer:{running:true,duration:d,endsAt:Date.now()+d*1000}
+    });
+  });
 }
+
 function openVoting(){
   const d=parseInt(document.getElementById("dur").value)||60;
   gameRef.update({phase:"vote",timer:{running:true,duration:d,endsAt:Date.now()+d*1000}});
