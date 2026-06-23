@@ -19,27 +19,47 @@
 const C=document.getElementById("content");
 const me=uid();
 let myName=localStorage.getItem("gp_name")||"";
-let lastPhase="",lastIdx=-1;
+
+let G={};
+let lastRenderKey=""; // sadece bu değişince yeniden çizeriz
 
 function saveName(){
   const n=document.getElementById("nm").value.trim();
   if(!n){alert("Enter a name");return;}
   myName=n; localStorage.setItem("gp_name",n);
   playersRef.child(me).set({name:n});
-  renderCurrent();
+  lastRenderKey=""; // ismi girince mutlaka yeniden çiz
+  renderCurrent(true);
 }
 
-let G={};
-gameRef.on("value",s=>{ G=s.val()||{}; renderCurrent(); });
+gameRef.on("value",s=>{ G=s.val()||{}; renderCurrent(false); });
 
-function renderCurrent(){
+function renderCurrent(force){
+  const ph=G.phase||"lobby";
+  const idx=G.currentPhoto??-1;
+
+  // Bu kullanıcının kendi durumu (gönderdi mi / oy verdi mi)
+  const iSubmitted = !!(G.guesses && G.guesses[idx] && G.guesses[idx][me]);
+  const iVoted      = !!(G.votes   && G.votes[idx]   && G.votes[idx][me]);
+
+  // Render anahtarı: SADECE bunlar değişince ekranı yeniden çiz.
+  // Başkasının guess/vote'u gelince bu anahtar DEĞİŞMEZ -> ekran sabit kalır.
+  const nameState = myName ? "named" : "noname";
+  const key = `${nameState}|${ph}|${idx}|${iSubmitted}|${iVoted}`;
+
+  if(!force && key===lastRenderKey){
+    // Sadece oylama ekranında oy sayıları güncellensin (textarea yok orada)
+    if(ph==="vote") updateVoteCountsOnly(idx);
+    return; // EKRANI YENİDEN ÇİZME -> yazdığın yazı silinmez
+  }
+  lastRenderKey=key;
+
   if(!myName){
     C.innerHTML=`<div class="card"><h1>Enter your name</h1>
       <input id="nm" placeholder="Your name">
       <button class="btn yellow" onclick="saveName()">Join 🎮</button></div>`;
     return;
   }
-  const ph=G.phase||"lobby"; const idx=G.currentPhoto??-1;
 
   if(ph==="lobby"){
     C.innerHTML=`<div class="card"><h2>Hi ${esc(myName)} 👋</h2>
@@ -48,8 +68,8 @@ function renderCurrent(){
   }
 
   if(ph==="guess"){
-    const myGuess=(G.guesses&&G.guesses[idx]&&G.guesses[idx][me])||null;
-    if(myGuess){
+    if(iSubmitted){
+      const myGuess=G.guesses[idx][me];
       C.innerHTML=`<div class="card"><h2>✅ Guess submitted!</h2>
         <div class="guess-item">${esc(myGuess.text)}</div>
         <p class="muted">Waiting for others...</p></div>`;
@@ -70,12 +90,11 @@ function renderCurrent(){
 
   if(ph==="vote"){
     const guesses=(G.guesses&&G.guesses[idx])||{};
-    const myVote=(G.votes&&G.votes[idx]&&G.votes[idx][me])||null;
     let html=`<div class="card"><span class="tag">Photo ${idx+1}</span><h2>🗳 Vote the best guess</h2>`;
     Object.entries(guesses).forEach(([u,x])=>{
-      if(u===me) return; // can't vote self
-      const sel=myVote===u?"selected":"";
-      html+=`<button class="vote-btn ${sel}" onclick="vote(${idx},'${u}')">💬 ${esc(x.text)}<br><span class="small">— ${esc(x.name)}</span></button>`;
+      if(u===me) return;
+      const sel=iVoted && G.votes[idx][me]===u ? "selected":"";
+      html+=`<button class="vote-btn ${sel}" id="vb_${u}" onclick="vote(${idx},'${u}')">💬 ${esc(x.text)}<br><span class="small">— ${esc(x.name)}</span></button>`;
     });
     if(Object.keys(guesses).filter(u=>u!==me).length===0) html+=`<p class="muted">No one else to vote for.</p>`;
     html+=`</div>`;
@@ -94,10 +113,18 @@ function renderCurrent(){
   C.innerHTML=`<div class="card"><p class="muted">Waiting...</p></div>`;
 }
 
+// Oylama ekranında sadece seçili butonu güncelle (ekranı yeniden çizmeden)
+function updateVoteCountsOnly(idx){
+  if(!(G.votes && G.votes[idx] && G.votes[idx][me])) return;
+  const myV=G.votes[idx][me];
+  document.querySelectorAll(".vote-btn").forEach(b=>b.classList.remove("selected"));
+  const el=document.getElementById("vb_"+myV);
+  if(el) el.classList.add("selected");
+}
+
 function submitGuess(idx){
   const t=document.getElementById("gtext").value.trim();
   if(!t){alert("Write something");return;}
-  // block if timer ended
   if(G.timer&&G.timer.endsAt&&Date.now()>G.timer.endsAt){alert("Time is up!");return;}
   gameRef.child("guesses/"+idx+"/"+me).set({name:myName,text:t});
 }
@@ -105,6 +132,7 @@ function vote(idx,u){
   if(G.timer&&G.timer.endsAt&&Date.now()>G.timer.endsAt){alert("Voting closed!");return;}
   gameRef.child("votes/"+idx+"/"+me).set(u);
 }
+
 </script>
 </body>
 </html>
